@@ -1,0 +1,13 @@
+node_modules/
+*.tgz
+.env
+.env.*
+!.env.example
+*.local.json
+*.local.yml
+*.local.yaml
+.omp-setup/
+.codebase-memory/
+coverage/
+*.db
+*.db-*

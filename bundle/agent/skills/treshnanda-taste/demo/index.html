@@ -1,0 +1,934 @@
+<!doctype html>
+<html lang="en" data-theme="light">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>treshnanda-taste — a personal UI/UX taste layer</title>
+<meta name="description" content="A warm dual-mode taste layer for Claude Code. Pill geometry, an editorial-serif voice, and motion that's alive but never in the way." />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet" />
+<style>
+/* ============================================================
+   TOKENS — light is the default canvas; dark is a first-class twin
+   ============================================================ */
+:root{
+  --sans: "Inter", -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+  --serif: "Instrument Serif", Georgia, "Times New Roman", serif;
+  --mono: "SF Mono", ui-monospace, "JetBrains Mono", "Menlo", monospace;
+
+  /* custom easing — built-in CSS easings are too weak */
+  --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+  --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
+  --ease-drawer: cubic-bezier(0.32, 0.72, 0, 1);
+  --spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+
+  /* warm accent — the one restrained color, used semantically */
+  --accent: #ec5a2a;
+  --accent-soft: rgba(236, 90, 42, 0.12);
+  --lime: #b8e24a; /* reserved: a single positive-delta moment */
+}
+
+html[data-theme="light"]{
+  --canvas: #efe9e1;          /* warm putty, never pure #fff */
+  --canvas-2: #e7e0d6;
+  --card: #fbf8f3;            /* brighter near-white floats on the tint */
+  --card-2: #f4efe7;
+  --ink: #1c1b18;            /* warm near-black */
+  --ink-2: #56514a;
+  --ink-3: #8c867c;
+  --hairline: rgba(28, 27, 24, 0.10);
+  --hairline-2: rgba(28, 27, 24, 0.06);
+  --shadow: 0 1px 1px rgba(60,45,30,.04), 0 8px 24px -8px rgba(60,45,30,.12), 0 30px 60px -30px rgba(60,45,30,.18);
+  --shadow-lift: 0 2px 4px rgba(60,45,30,.06), 0 18px 40px -10px rgba(60,45,30,.20), 0 40px 80px -30px rgba(60,45,30,.24);
+  --glass: rgba(251, 248, 243, 0.72);
+  --dot: rgba(28, 27, 24, 0.05);
+  --on-black: #f5f1ea;
+  color-scheme: light;
+}
+
+html[data-theme="dark"]{
+  --canvas: #100f0d;          /* layered charcoal frame, not OLED */
+  --canvas-2: #16140f;
+  --card: #1b1916;            /* card is brighter than canvas → depth */
+  --card-2: #211e19;
+  --ink: #f3efe7;
+  --ink-2: #b3ada1;
+  --ink-3: #7d776c;
+  --hairline: rgba(255, 251, 240, 0.10);
+  --hairline-2: rgba(255, 251, 240, 0.05);
+  --shadow: 0 1px 1px rgba(0,0,0,.3), 0 10px 30px -10px rgba(0,0,0,.6), 0 30px 60px -30px rgba(0,0,0,.7);
+  --shadow-lift: 0 2px 6px rgba(0,0,0,.4), 0 22px 50px -12px rgba(0,0,0,.7), 0 50px 90px -30px rgba(0,0,0,.8);
+  --glass: rgba(27, 25, 22, 0.66);
+  --dot: rgba(255, 251, 240, 0.045);
+  --on-black: #f5f1ea;
+  color-scheme: dark;
+}
+
+/* ============================================================ */
+*{ box-sizing: border-box; margin: 0; padding: 0; }
+::selection{ background: var(--accent-soft); color: var(--accent); }
+
+html{ scroll-behavior: smooth; -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility; }
+
+body{
+  font-family: var(--sans);
+  background: var(--canvas);
+  color: var(--ink);
+  line-height: 1.5;
+  overflow-x: hidden;
+  /* the only properties that animate on theme swap */
+  transition: background-color .55s var(--ease-out), color .55s var(--ease-out);
+}
+
+/* faint dot-grid on the canvas */
+body::before{
+  content:"";
+  position: fixed; inset: 0; z-index: 0; pointer-events: none;
+  background-image: radial-gradient(var(--dot) 1px, transparent 1px);
+  background-size: 22px 22px;
+  transition: background-color .55s var(--ease-out);
+}
+/* very faint global grain */
+body::after{
+  content:""; position: fixed; inset:0; z-index: 0; pointer-events:none; opacity:.4;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.5'/%3E%3C/svg%3E");
+  mix-blend-mode: overlay;
+}
+
+/* theme-switch blur veil — emil's "mask the crossfade with blur" */
+.veil{
+  position: fixed; inset: 0; z-index: 200; pointer-events: none;
+  backdrop-filter: blur(0px); opacity: 0;
+  transition: backdrop-filter .28s var(--ease-out), opacity .28s var(--ease-out);
+}
+.veil.on{ backdrop-filter: blur(7px); opacity: 1; }
+
+main{ position: relative; z-index: 1; }
+.wrap{ width: min(1120px, 92vw); margin-inline: auto; }
+
+a{ color: inherit; text-decoration: none; }
+
+/* shared text bits */
+.eyebrow{
+  font-family: var(--mono);
+  font-size: 11.5px; letter-spacing: .18em; text-transform: uppercase;
+  color: var(--ink-3); font-weight: 500;
+}
+.serif{ font-family: var(--serif); font-style: italic; font-weight: 400; }
+
+/* ---- pills & buttons: pill is the system ---- */
+.btn{
+  display: inline-flex; align-items: center; gap: .5em;
+  font-family: var(--sans); font-size: 15px; font-weight: 500;
+  padding: 13px 22px; border-radius: 999px; cursor: pointer;
+  border: 1px solid transparent; user-select: none; white-space: nowrap;
+  transition: transform .16s var(--ease-out), background-color .2s var(--ease-out),
+              box-shadow .2s var(--ease-out), border-color .2s var(--ease-out), color .2s var(--ease-out);
+}
+.btn:active{ transform: scale(0.97); }       /* press feedback, every pressable */
+.btn-primary{ background: var(--ink); color: var(--canvas); box-shadow: var(--shadow); }
+.btn-primary .arrow{ transition: transform .22s var(--spring); }
+.btn-primary:hover{ box-shadow: var(--shadow-lift); }
+.btn-primary:hover .arrow{ transform: translateX(4px); }
+.btn-ghost{ background: transparent; color: var(--ink); border-color: var(--hairline); }
+.btn-ghost:hover{ background: var(--card); border-color: var(--ink-3); }
+
+/* ============================================================
+   NAV — floating frosted capsule, never edge-welded
+   ============================================================ */
+header.nav{
+  position: fixed; top: 16px; left: 0; right: 0; z-index: 100;
+  display: flex; justify-content: center; padding-inline: 4vw;
+  transition: top .3s var(--ease-out);
+}
+.nav-inner{
+  display: flex; align-items: center; gap: 8px;
+  width: min(1000px, 96vw);
+  padding: 8px 8px 8px 18px;
+  background: var(--glass);
+  -webkit-backdrop-filter: blur(18px) saturate(1.4);
+  backdrop-filter: blur(18px) saturate(1.4);
+  border: 1px solid var(--hairline);
+  border-radius: 999px;
+  box-shadow: var(--shadow);
+}
+.brand{ display:flex; align-items:center; gap:9px; font-weight:600; letter-spacing:-.01em; }
+.brand .mark{
+  width: 22px; height: 22px; border-radius: 7px;
+  background: linear-gradient(135deg, var(--accent), #f59f3c);
+  box-shadow: inset 0 0 0 1px rgba(255,255,255,.25), 0 2px 6px rgba(236,90,42,.4);
+  position: relative; flex: none;
+}
+.brand .mark::after{ content:""; position:absolute; inset:6px; border-radius:3px; background: var(--card); opacity:.9; }
+.nav-links{ display: flex; gap: 4px; margin-left: 14px; }
+.nav-links a{
+  font-size: 14px; color: var(--ink-2); font-weight: 500;
+  padding: 8px 13px; border-radius: 999px; position: relative;
+  transition: color .18s var(--ease-out), background-color .18s var(--ease-out);
+}
+.nav-links a:hover{ color: var(--ink); background: var(--card-2); }
+.nav-right{ margin-left: auto; display: flex; align-items: center; gap: 8px; }
+
+/* theme toggle */
+.toggle{
+  width: 38px; height: 38px; border-radius: 999px; flex: none;
+  display: grid; place-items: center; cursor: pointer;
+  background: var(--card-2); border: 1px solid var(--hairline); color: var(--ink);
+  transition: transform .16s var(--ease-out), background-color .2s var(--ease-out);
+}
+.toggle:hover{ background: var(--card); }
+.toggle:active{ transform: scale(0.92); }
+.toggle svg{ width: 17px; height: 17px; transition: transform .4s var(--spring), opacity .25s var(--ease-out); }
+.toggle .sun{ display: none; }
+html[data-theme="dark"] .toggle .moon{ display: none; }
+html[data-theme="dark"] .toggle .sun{ display: block; }
+
+.nav-cta{ padding: 9px 17px; font-size: 14px; }
+
+@media (max-width: 760px){
+  .nav-links{ display: none; }
+}
+
+/* ============================================================
+   HERO — centered symmetric; product peek cropped by the fold
+   ============================================================ */
+.hero{ padding: 168px 0 0; text-align: center; position: relative; }
+
+.hero .eyebrow-chip{
+  display: inline-flex; align-items: center; gap: 8px;
+  padding: 7px 14px 7px 11px; border-radius: 999px;
+  background: var(--card); border: 1px solid var(--hairline);
+  box-shadow: var(--shadow); margin-bottom: 28px;
+}
+.hero .eyebrow-chip .dot{
+  width: 7px; height: 7px; border-radius: 999px; background: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+  animation: breathe 2.6s var(--ease-in-out) infinite;
+}
+@keyframes breathe{ 0%,100%{ transform: scale(1); opacity: 1 } 50%{ transform: scale(1.35); opacity: .7 } }
+
+.hero h1{
+  font-weight: 600; letter-spacing: -0.035em; line-height: 0.98;
+  font-size: clamp(44px, 8.2vw, 92px);
+  max-width: 16ch; margin: 0 auto 26px;
+}
+.hero h1 .serif{ letter-spacing: -0.01em; }   /* the editorial-serif italic word */
+.hero h1 .accent{ color: var(--accent); }
+
+.hero .sub{
+  font-size: clamp(16.5px, 2vw, 20px); color: var(--ink-2);
+  max-width: 56ch; margin: 0 auto 34px; line-height: 1.55;
+}
+.hero .cta-row{ display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; margin-bottom: 18px; }
+.hero .install-line{
+  font-family: var(--mono); font-size: 13px; color: var(--ink-3);
+  display: inline-flex; gap: 8px; align-items: center;
+}
+.hero .install-line b{ color: var(--ink-2); font-weight: 500; }
+
+/* hero stage: floating widget cluster, static subtle tilt + idle float */
+.stage-wrap{ margin-top: 44px; perspective: 1600px; }
+.stage{
+  position: relative; height: clamp(360px, 46vw, 560px);
+  transform: rotateX(8deg) rotateZ(-1.2deg);
+  transform-style: preserve-3d;
+  -webkit-mask-image: linear-gradient(to bottom, #000 64%, transparent 99%);
+  mask-image: linear-gradient(to bottom, #000 64%, transparent 99%);
+}
+.widget{
+  position: absolute; background: var(--card);
+  border: 1px solid var(--hairline); border-radius: 26px;
+  box-shadow: var(--shadow); padding: 18px;
+  transition: transform .35s var(--ease-out), box-shadow .35s var(--ease-out);
+  will-change: transform;
+}
+.widget:hover{ box-shadow: var(--shadow-lift); }
+.widget .w-label{ font-family: var(--mono); font-size: 10.5px; letter-spacing: .14em; text-transform: uppercase; color: var(--ink-3); }
+
+/* floating positions */
+.w-mesh{ left: 50%; top: 4%; width: min(420px, 60%); height: 56%; transform: translateX(-54%); animation: float1 7s var(--ease-in-out) infinite; padding: 0; overflow: hidden; }
+.w-palette{ left: 2%; top: 30%; width: min(280px, 40%); animation: float2 8s var(--ease-in-out) infinite; }
+.w-type{ right: 1%; top: 12%; width: min(250px, 36%); animation: float3 9s var(--ease-in-out) infinite; }
+.w-motion{ right: 6%; bottom: 8%; width: min(260px, 38%); animation: float2 7.5s var(--ease-in-out) infinite reverse; }
+
+@keyframes float1{ 0%,100%{ transform: translateX(-54%) translateY(0) } 50%{ transform: translateX(-54%) translateY(-12px) } }
+@keyframes float2{ 0%,100%{ transform: translateY(0) } 50%{ transform: translateY(-14px) } }
+@keyframes float3{ 0%,100%{ transform: translateY(0) rotate(1.2deg) } 50%{ transform: translateY(-10px) rotate(1.2deg) } }
+
+/* mesh widget — the ONE grained warm gradient surface */
+.mesh-fill{
+  position: absolute; inset: 0;
+  background:
+    radial-gradient(120% 120% at 18% 12%, #ffd9a8 0%, transparent 52%),
+    radial-gradient(120% 120% at 88% 22%, #ff9e6d 0%, transparent 50%),
+    radial-gradient(140% 140% at 70% 95%, #ec5a2a 0%, transparent 55%),
+    radial-gradient(120% 120% at 10% 92%, #ffcaa0 0%, transparent 50%),
+    linear-gradient(135deg, #ffb27a, #ee6a39);
+  background-size: 200% 200%;
+  animation: drift 14s var(--ease-in-out) infinite;
+}
+@keyframes drift{ 0%,100%{ background-position: 0% 50% } 50%{ background-position: 100% 50% } }
+.mesh-grain{
+  position: absolute; inset: 0; mix-blend-mode: overlay; opacity: .55;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='g'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23g)'/%3E%3C/svg%3E");
+}
+.w-mesh .w-content{ position: absolute; inset: 0; padding: 20px; display: flex; flex-direction: column; justify-content: space-between; color: #fff; }
+.w-mesh .w-content .top{ display:flex; justify-content: space-between; align-items: center; }
+.w-mesh .w-content .top .w-label{ color: rgba(255,255,255,.85); }
+.w-mesh .big-serif{ font-family: var(--serif); font-style: italic; font-size: clamp(34px, 5vw, 52px); line-height: 1; text-shadow: 0 2px 20px rgba(120,40,0,.4); }
+
+/* palette widget */
+.swatches{ display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 14px; }
+.sw{ height: 52px; border-radius: 14px; border: 1px solid var(--hairline-2); position: relative; display:flex; align-items:flex-end; padding: 7px; }
+.sw span{ font-family: var(--mono); font-size: 9px; letter-spacing: .02em; }
+.sw.cream{ background: #efe9e1; color: #56514a; }
+.sw.ink{ background: #1c1b18; color: #cfc8bd; }
+.sw.coral{ background: var(--accent); color: #ffe6d8; }
+.sw.lime{ background: var(--lime); color: #2f3a08; }
+
+/* type widget */
+.type-row{ display: flex; align-items: baseline; gap: 16px; margin-top: 14px; }
+.type-serif{ font-family: var(--serif); font-size: 64px; line-height: .8; }
+.type-sans{ font-size: 56px; font-weight: 700; letter-spacing: -.04em; line-height: .8; }
+.type-meta{ margin-top: 16px; display:flex; justify-content: space-between; color: var(--ink-3); font-size: 12px; }
+
+/* motion widget — iOS-widget concentric nesting */
+.w-motion .inner{
+  margin-top: 14px; background: var(--ink); border-radius: 18px; padding: 16px;
+  height: 116px; position: relative; overflow: hidden;
+}
+.w-motion .orb{
+  position: absolute; left: 50%; top: 50%; width: 54px; height: 54px; border-radius: 999px;
+  transform: translate(-50%,-50%);
+  background: radial-gradient(circle at 32% 28%, #ffd0b0, var(--accent) 60%);
+  box-shadow: 0 0 0 0 rgba(236,90,42,.5), 0 8px 24px rgba(236,90,42,.5);
+  animation: pulseOrb 2.8s var(--ease-in-out) infinite, floatOrb 5s var(--ease-in-out) infinite;
+}
+@keyframes pulseOrb{ 0%,100%{ box-shadow: 0 0 0 0 rgba(236,90,42,.45), 0 8px 24px rgba(236,90,42,.45) } 50%{ box-shadow: 0 0 0 14px rgba(236,90,42,0), 0 8px 24px rgba(236,90,42,.55) } }
+@keyframes floatOrb{ 0%,100%{ transform: translate(-50%,-50%) } 50%{ transform: translate(-50%,-64%) } }
+.w-motion .inner .tag{ position:absolute; bottom: 12px; left: 14px; font-family: var(--mono); font-size: 10px; letter-spacing: .12em; text-transform: uppercase; color: rgba(255,255,255,.6); }
+
+/* ============================================================
+   STRIP — quiet trust line with a number ticker
+   ============================================================ */
+.strip{ padding: 30px 0 6px; }
+.strip-inner{
+  display:flex; flex-wrap: wrap; justify-content: center; gap: 14px 40px; align-items: center;
+  color: var(--ink-3); font-size: 14px;
+}
+.strip-inner b{ color: var(--ink); font-weight: 600; }
+.strip-inner .tick{ font-variant-numeric: tabular-nums; }
+.strip-inner .sep{ width: 4px; height: 4px; border-radius: 999px; background: var(--ink-3); opacity:.5; }
+
+/* ============================================================
+   SECTION scaffolding
+   ============================================================ */
+section.block{ padding: clamp(64px, 11vw, 132px) 0 0; }
+.sec-head{ max-width: 640px; margin-bottom: 44px; }
+.sec-head.center{ margin-inline: auto; text-align: center; }
+.sec-head h2{
+  font-size: clamp(30px, 4.6vw, 50px); font-weight: 600; letter-spacing: -0.03em;
+  line-height: 1.04; margin: 14px 0 14px;
+}
+.sec-head p{ color: var(--ink-2); font-size: clamp(15px, 1.8vw, 18px); line-height: 1.55; }
+
+/* reveal-on-scroll */
+.reveal{ opacity: 0; transform: translateY(20px); filter: blur(6px); }
+.reveal.in{ opacity: 1; transform: none; filter: blur(0.01px);
+  transition: opacity .7s var(--ease-out), transform .7s var(--ease-out), filter .7s var(--ease-out);
+  transition-delay: calc(var(--i, 0) * 70ms); }
+
+/* ---- quality bar ---- */
+.bar-grid{ display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+.bar-card{ background: var(--card); border: 1px solid var(--hairline); border-radius: 22px; padding: 26px; box-shadow: var(--shadow); }
+.bar-card h3{ font-size: 14px; font-weight: 600; display:flex; align-items:center; gap: 9px; margin-bottom: 18px; }
+.bar-card .tagdot{ width: 9px; height: 9px; border-radius: 999px; }
+.bar-card.praise .tagdot{ background: var(--lime); }
+.bar-card.reject .tagdot{ background: var(--ink-3); }
+.chiprow{ display: flex; flex-wrap: wrap; gap: 8px; }
+.chip{
+  font-size: 13.5px; padding: 7px 13px; border-radius: 999px;
+  border: 1px solid var(--hairline); background: var(--card-2); color: var(--ink-2);
+  transition: transform .16s var(--ease-out), color .16s var(--ease-out), border-color .16s var(--ease-out), background-color .16s;
+}
+.bar-card.praise .chip:hover{ transform: translateY(-2px); color: var(--ink); border-color: color-mix(in srgb, var(--lime) 60%, var(--hairline)); }
+.bar-card.reject .chip{ text-decoration: line-through; text-decoration-color: var(--ink-3); opacity: .72; }
+@media (max-width: 720px){ .bar-grid{ grid-template-columns: 1fr; } }
+
+/* ---- visual language bento ---- */
+.bento{ display: grid; grid-template-columns: repeat(6, 1fr); gap: 16px; grid-auto-rows: 180px; }
+.cell{
+  background: var(--card); border: 1px solid var(--hairline); border-radius: 22px;
+  padding: 22px; box-shadow: var(--shadow); position: relative; overflow: hidden;
+  transition: transform .3s var(--ease-out), box-shadow .3s var(--ease-out);
+}
+.cell:hover{ transform: translateY(-4px); box-shadow: var(--shadow-lift); }
+.cell .c-label{ font-family: var(--mono); font-size: 10.5px; letter-spacing: .13em; text-transform: uppercase; color: var(--ink-3); }
+.cell .c-title{ font-size: 17px; font-weight: 600; letter-spacing: -.01em; margin-top: 4px; }
+.cell .c-desc{ font-size: 13.5px; color: var(--ink-2); margin-top: 6px; line-height: 1.45; max-width: 30ch; }
+
+.c-canvas{ grid-column: span 2; grid-row: span 2; }
+.c-dual{ grid-column: span 2; }
+.c-accent{ grid-column: span 2; }
+.c-pill{ grid-column: span 3; }
+.c-serif{ grid-column: span 3; }
+.c-widget{ grid-column: span 3; }
+.c-mesh{ grid-column: span 3; }
+
+/* canvas cell: brighter card floating on tinted field */
+.c-canvas .float-card{
+  position: absolute; left: 22px; right: 22px; bottom: 22px; top: 78px;
+  background: var(--card-2); border: 1px solid var(--hairline-2); border-radius: 16px;
+  box-shadow: var(--shadow);
+}
+.c-canvas .float-card::after{ content:""; position:absolute; inset: 12px; border-radius: 9px; background: var(--card); border: 1px solid var(--hairline-2); }
+
+/* dual mode mini twin */
+.twin{ display:flex; gap: 8px; margin-top: 16px; }
+.twin div{ flex:1; height: 78px; border-radius: 13px; border: 1px solid var(--hairline-2); position: relative; }
+.twin .lite{ background: #efe9e1; }
+.twin .lite::after, .twin .drk::after{ content:""; position:absolute; left:10px; right:10px; top:12px; height: 8px; border-radius: 4px; }
+.twin .lite::after{ background:#1c1b18; opacity:.85; }
+.twin .lite::before, .twin .drk::before{ content:""; position:absolute; left:10px; right:30px; bottom:12px; height: 8px; border-radius: 4px; background: var(--accent); }
+.twin .drk{ background: #161410; }
+.twin .drk::after{ background:#f3efe7; opacity:.9; }
+
+/* accent cell */
+.accent-demo{ display:flex; align-items:center; gap: 12px; margin-top: 18px; }
+.accent-demo .swatch{ width: 46px; height: 46px; border-radius: 13px; background: var(--accent); box-shadow: 0 8px 20px rgba(236,90,42,.4); }
+.accent-demo .meta b{ font-family: var(--mono); font-size: 13px; }
+.accent-demo .meta span{ display:block; font-size: 12px; color: var(--ink-3); }
+
+/* pill cell */
+.pill-demo{ display:flex; flex-wrap: wrap; gap: 8px; margin-top: 18px; align-items:center; }
+.pill-demo .p{ border-radius: 999px; border: 1px solid var(--hairline); padding: 8px 14px; font-size: 13px; background: var(--card-2); }
+.pill-demo .p.solid{ background: var(--ink); color: var(--canvas); border-color: transparent; }
+.pill-demo .p.acc{ background: var(--accent); color:#fff; border-color: transparent; }
+.pill-demo .seg{ display:flex; background: var(--card-2); border:1px solid var(--hairline); border-radius:999px; padding:3px; }
+.pill-demo .seg b{ font-size:13px; padding:6px 13px; border-radius:999px; font-weight:500; color: var(--ink-3); }
+.pill-demo .seg b.on{ background: var(--card); color: var(--ink); box-shadow: var(--shadow); }
+
+/* serif cell */
+.c-serif .big{ font-family: var(--serif); font-size: clamp(40px, 6vw, 72px); line-height: .92; margin-top: 8px; }
+.c-serif .big em{ color: var(--accent); }
+
+/* widget cell — concentric nesting */
+.nest{ margin-top: 14px; background: var(--card-2); border:1px solid var(--hairline-2); border-radius: 20px; padding: 12px; }
+.nest .l2{ background: var(--ink); border-radius: 14px; padding: 10px; }
+.nest .l3{ background: var(--accent); border-radius: 8px; height: 30px; }
+
+/* mesh cell */
+.c-mesh{ color: #fff; border: none; }
+.c-mesh .mesh-fill{ animation: drift 16s var(--ease-in-out) infinite; }
+.c-mesh .c-label{ color: rgba(255,255,255,.8); position: relative; }
+.c-mesh .c-title{ color:#fff; position: relative; }
+.c-mesh .c-desc{ color: rgba(255,255,255,.88); position: relative; }
+
+@media (max-width: 860px){
+  .bento{ grid-template-columns: repeat(2, 1fr); grid-auto-rows: 168px; }
+  .c-canvas,.c-dual,.c-accent,.c-pill,.c-serif,.c-widget,.c-mesh{ grid-column: span 2; grid-row: auto; }
+  .c-canvas .float-card{ top: 70px; }
+}
+
+/* ============================================================
+   MOTION section
+   ============================================================ */
+.motion-grid{ display:grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+.reg{ background: var(--card); border:1px solid var(--hairline); border-radius: 22px; padding: 28px; box-shadow: var(--shadow); }
+.reg .num{ font-family: var(--serif); font-style: italic; font-size: 40px; color: var(--accent); line-height: 1; }
+.reg h3{ font-size: 20px; font-weight: 600; letter-spacing: -.02em; margin: 10px 0 8px; }
+.reg p{ color: var(--ink-2); font-size: 15px; line-height: 1.55; }
+@media (max-width: 720px){ .motion-grid{ grid-template-columns: 1fr; } }
+
+/* interactive demo row */
+.demo-row{ display:grid; grid-template-columns: repeat(3,1fr); gap: 16px; margin-top: 16px; }
+.demo{
+  background: var(--card); border:1px solid var(--hairline); border-radius: 22px; padding: 24px;
+  box-shadow: var(--shadow); display:flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 14px; min-height: 180px; text-align: center;
+}
+.demo .d-cap{ font-family: var(--mono); font-size: 10.5px; letter-spacing: .12em; text-transform: uppercase; color: var(--ink-3); }
+.demo .ticker{ font-size: 54px; font-weight: 700; letter-spacing: -.04em; font-variant-numeric: tabular-nums; }
+.demo .ticker .u{ color: var(--accent); }
+.lift-card{
+  width: 120px; height: 76px; border-radius: 16px; background: var(--card-2);
+  border:1px solid var(--hairline); box-shadow: var(--shadow);
+  transition: transform .3s var(--spring), box-shadow .3s var(--ease-out);
+  display:grid; place-items:center; font-size: 13px; color: var(--ink-2);
+}
+.lift-card:hover{ transform: translateY(-8px) scale(1.03); box-shadow: var(--shadow-lift); }
+@media (max-width: 720px){ .demo-row{ grid-template-columns: 1fr; } }
+
+/* marquee of vocabulary terms */
+.marquee{ margin-top: 16px; overflow: hidden; -webkit-mask-image: linear-gradient(90deg, transparent, #000 8%, #000 92%, transparent); mask-image: linear-gradient(90deg, transparent, #000 8%, #000 92%, transparent); }
+.marquee .track{ display: flex; gap: 12px; width: max-content; animation: scroll 38s linear infinite; }
+.marquee:hover .track{ animation-play-state: paused; }
+@keyframes scroll{ to{ transform: translateX(-50%); } }
+.term{ font-family: var(--mono); font-size: 13px; color: var(--ink-2); padding: 9px 16px; border-radius: 999px; border:1px solid var(--hairline); background: var(--card); white-space: nowrap; }
+.term .b{ color: var(--accent); }
+
+/* ============================================================
+   NEVER list
+   ============================================================ */
+.never-card{ background: var(--card); border:1px solid var(--hairline); border-radius: 24px; padding: clamp(26px,4vw,40px); box-shadow: var(--shadow); }
+.never-list{ display:flex; flex-wrap: wrap; gap: 10px; margin-top: 6px; }
+.never{
+  font-size: 14px; padding: 9px 15px; border-radius: 999px;
+  background: var(--card-2); border: 1px solid var(--hairline); color: var(--ink-3);
+  text-decoration: line-through; text-decoration-color: color-mix(in srgb, var(--accent) 55%, transparent);
+  text-decoration-thickness: 1.5px;
+  transition: transform .16s var(--ease-out), color .16s var(--ease-out);
+}
+.never:hover{ transform: translateY(-2px); color: var(--ink-2); }
+
+/* ============================================================
+   INSTALL — the earned WOW surface (reserved OLED-black focal)
+   ============================================================ */
+.install-sec{ padding: clamp(64px,11vw,132px) 0 0; }
+.install-card{
+  position: relative; overflow: hidden;
+  background: #0c0b0a; color: var(--on-black);
+  border-radius: 30px; padding: clamp(40px, 7vw, 80px) clamp(28px,5vw,64px);
+  text-align: center; box-shadow: var(--shadow-lift);
+  border: 1px solid rgba(255,255,255,.06);
+}
+.install-card .glow{
+  position: absolute; left: 50%; top: -40%; width: 70%; height: 90%; transform: translateX(-50%);
+  background: radial-gradient(closest-side, rgba(236,90,42,.55), transparent 70%);
+  filter: blur(40px); opacity: .8; animation: glowdrift 9s var(--ease-in-out) infinite;
+  pointer-events: none;
+}
+@keyframes glowdrift{ 0%,100%{ transform: translateX(-54%) scale(1) } 50%{ transform: translateX(-46%) scale(1.12) } }
+.install-card .eyebrow{ color: rgba(245,241,234,.6); position: relative; }
+.install-card h2{ position: relative; font-size: clamp(32px, 5.4vw, 60px); font-weight: 600; letter-spacing: -.03em; line-height: 1.02; margin: 14px auto 12px; max-width: 18ch; }
+.install-card h2 .serif{ color: #ffb98f; }
+.install-card .lead{ position: relative; color: rgba(245,241,234,.7); max-width: 50ch; margin: 0 auto 34px; font-size: 17px; }
+
+.cmd{
+  position: relative; display: inline-flex; align-items: center; gap: 14px;
+  background: rgba(255,255,255,.06); border: 1px solid rgba(255,255,255,.12);
+  border-radius: 999px; padding: 10px 10px 10px 22px; cursor: pointer;
+  transition: transform .16s var(--ease-out), background-color .2s var(--ease-out), border-color .2s;
+}
+.cmd:hover{ background: rgba(255,255,255,.09); border-color: rgba(255,255,255,.2); }
+.cmd:active{ transform: scale(0.98); }
+.cmd code{ font-family: var(--mono); font-size: 15px; color: var(--on-black); letter-spacing: .01em; }
+.cmd code .pfx{ color: #ff9b6b; }
+.cmd .copybtn{
+  position: relative; width: 40px; height: 40px; border-radius: 999px; flex: none;
+  background: var(--on-black); color: #0c0b0a; display: grid; place-items: center; overflow: hidden;
+}
+.cmd .copybtn svg{ width: 17px; height: 17px; position: absolute; transition: transform .32s var(--spring), opacity .2s var(--ease-out); }
+.cmd .copybtn .ic-copy{ transform: translateY(0); opacity: 1; }
+.cmd .copybtn .ic-check{ transform: translateY(140%) scale(.6); opacity: 0; color: #0c0b0a; }
+.cmd.copied .copybtn{ background: var(--lime); }
+.cmd.copied .copybtn .ic-copy{ transform: translateY(-140%) scale(.6); opacity: 0; }
+.cmd.copied .copybtn .ic-check{ transform: translateY(0) scale(1); opacity: 1; }
+/* ripple on the earned moment */
+.cmd .ring{ position:absolute; inset:0; border-radius:999px; border: 2px solid var(--lime); opacity: 0; pointer-events:none; }
+.cmd.copied .ring{ animation: ring .6s var(--ease-out); }
+@keyframes ring{ 0%{ transform: scale(.96); opacity:.7 } 100%{ transform: scale(1.06); opacity: 0 } }
+
+.install-card .or{ position: relative; margin-top: 22px; color: rgba(245,241,234,.5); font-size: 14px; }
+.install-card .or b{ font-family: var(--mono); color: #ffb98f; background: rgba(255,255,255,.06); padding: 4px 11px; border-radius: 999px; }
+
+.toast{
+  position: fixed; left: 50%; bottom: 28px; transform: translateX(-50%) translateY(140%);
+  background: var(--ink); color: var(--canvas); padding: 12px 20px; border-radius: 999px;
+  font-size: 14px; font-weight: 500; box-shadow: var(--shadow-lift); z-index: 150;
+  display:flex; align-items:center; gap: 9px;
+  transition: transform .45s var(--ease-drawer), opacity .45s var(--ease-out);
+  opacity: 0;
+}
+.toast.show{ transform: translateX(-50%) translateY(0); opacity: 1; }
+.toast .tdot{ width: 8px; height: 8px; border-radius: 999px; background: var(--lime); }
+
+/* ============================================================
+   FOOTER
+   ============================================================ */
+footer{ padding: clamp(56px,9vw,110px) 0 48px; text-align: center; }
+footer .f-brand{ display:inline-flex; align-items:center; gap: 10px; font-weight: 600; font-size: 18px; margin-bottom: 12px; }
+footer .f-brand .mark{ width: 24px; height: 24px; }
+footer p{ color: var(--ink-2); font-size: 15px; }
+footer .f-note{ font-family: var(--serif); font-style: italic; font-size: 22px; color: var(--ink); margin: 16px 0 28px; }
+footer .f-meta{ color: var(--ink-3); font-size: 13px; font-family: var(--mono); letter-spacing: .04em; }
+
+/* ============================================================
+   REDUCED MOTION — fewer & gentler, never zero comprehension
+   ============================================================ */
+@media (prefers-reduced-motion: reduce){
+  *{ animation-duration: .001ms !important; animation-iteration-count: 1 !important; }
+  .reveal{ opacity: 1; transform: none; filter: none; transition: none; }
+  .stage{ transform: none; }
+  html{ scroll-behavior: auto; }
+}
+/* touch devices: gate hover lifts */
+@media (hover: none){
+  .cell:hover, .lift-card:hover, .widget:hover{ transform: none; }
+}
+</style>
+</head>
+<body>
+<div class="veil" id="veil"></div>
+
+<header class="nav">
+  <div class="nav-inner">
+    <a class="brand" href="#top"><span class="mark"></span> treshnanda<span style="color:var(--ink-3)">·</span>taste</a>
+    <nav class="nav-links">
+      <a href="#language">Visual language</a>
+      <a href="#motion">Motion</a>
+      <a href="#never">Restraint</a>
+      <a href="#install">Install</a>
+    </nav>
+    <div class="nav-right">
+      <button class="toggle" id="themeToggle" aria-label="Toggle color theme">
+        <svg class="moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+        <svg class="sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>
+      </button>
+      <a href="#install" class="btn btn-primary nav-cta">Install</a>
+    </div>
+  </div>
+</header>
+
+<main id="top">
+  <!-- ============== HERO ============== -->
+  <section class="hero wrap">
+    <span class="eyebrow-chip"><span class="dot"></span><span class="eyebrow">Personal UI/UX taste profile · v2</span></span>
+    <h1>Interfaces that feel <span class="serif">premium</span>, alive, and unmistakably yours.</h1>
+    <p class="sub">A personal taste layer for Claude Code. A warm dual-mode canvas, pill geometry, an editorial-serif voice, iOS-widget tactility, and motion that's alive but never in the way. One invocation pulls the whole aesthetic.</p>
+    <div class="cta-row">
+      <a href="#install" class="btn btn-primary">Install the skill <span class="arrow">→</span></a>
+      <a href="#language" class="btn btn-ghost">Explore the language</a>
+    </div>
+    <p class="install-line"><b>npx skills add</b> Tresnanda/treshnanda-taste</p>
+
+    <div class="stage-wrap">
+      <div class="stage">
+        <!-- the ONE grained warm mesh surface -->
+        <div class="widget w-mesh">
+          <div class="mesh-fill"></div>
+          <div class="mesh-grain"></div>
+          <div class="w-content">
+            <div class="top"><span class="w-label">one grained hero</span></div>
+            <div class="big-serif">feels<br>premium.</div>
+          </div>
+        </div>
+        <!-- palette -->
+        <div class="widget w-palette">
+          <span class="w-label">warm palette · one accent</span>
+          <div class="swatches">
+            <div class="sw cream"><span>#efe9e1</span></div>
+            <div class="sw ink"><span>#1c1b18</span></div>
+            <div class="sw coral"><span>#ec5a2a</span></div>
+            <div class="sw lime"><span>#b8e24a</span></div>
+          </div>
+        </div>
+        <!-- type -->
+        <div class="widget w-type">
+          <span class="w-label">two voices</span>
+          <div class="type-row">
+            <span class="type-serif">Aa</span>
+            <span class="type-sans">Aa</span>
+          </div>
+          <div class="type-meta"><span>Editorial serif</span><span>Grotesque sans</span></div>
+        </div>
+        <!-- motion / concentric -->
+        <div class="widget w-motion">
+          <span class="w-label">alive layer</span>
+          <div class="inner">
+            <div class="orb"></div>
+            <span class="tag">idle · breathe · float</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============== TRUST STRIP ============== -->
+  <section class="strip wrap reveal">
+    <div class="strip-inner">
+      <span>Distilled from <b>hundreds</b> of real iterations</span>
+      <span class="sep"></span>
+      <span><b class="tick" id="tick" data-to="77">0</b> hand-picked reference designs</span>
+      <span class="sep"></span>
+      <span>Dual-mode <b>by default</b></span>
+    </div>
+  </section>
+
+  <!-- ============== QUALITY BAR ============== -->
+  <section class="block wrap" id="quality">
+    <div class="sec-head reveal">
+      <span class="eyebrow">The bar</span>
+      <h2>Graded by their <span class="serif">own words.</span></h2>
+      <p>Polished-but-conventional reads as not enough. The target is a feeling. Praise lands when it sounds like the left; anything on the right gets fixed, not defended.</p>
+    </div>
+    <div class="bar-grid">
+      <div class="bar-card praise reveal" style="--i:0">
+        <h3><span class="tagdot"></span> On target</h3>
+        <div class="chiprow">
+          <span class="chip">high taste</span><span class="chip">premium</span><span class="chip">tasteful</span>
+          <span class="chip">feels good</span><span class="chip">magic</span><span class="chip">WOW</span>
+          <span class="chip">awwwards-tier</span><span class="chip">unique</span>
+        </div>
+      </div>
+      <div class="bar-card reject reveal" style="--i:1">
+        <h3><span class="tagdot"></span> Fix it</h3>
+        <div class="chiprow">
+          <span class="chip">off</span><span class="chip">weird</span><span class="chip">ugly</span>
+          <span class="chip">ai slop</span><span class="chip">not premium</span><span class="chip">bare</span>
+          <span class="chip">too subtle</span><span class="chip">not good enough</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============== VISUAL LANGUAGE BENTO ============== -->
+  <section class="block wrap" id="language">
+    <div class="sec-head center reveal">
+      <span class="eyebrow">Visual language</span>
+      <h2>The cross-cutting <span class="serif">DNA.</span></h2>
+      <p>Warm canvas, one accent, pill everything, an editorial-serif moment, and concentric iOS-widget nesting. Every cell below is the language describing itself.</p>
+    </div>
+    <div class="bento">
+      <div class="cell c-canvas reveal" style="--i:0">
+        <span class="c-label">Canvas · depth</span>
+        <div class="c-title">A brighter card floats on a warm, tinted field</div>
+        <div class="float-card"></div>
+      </div>
+      <div class="cell c-dual reveal" style="--i:1">
+        <span class="c-label">Dual mode</span>
+        <div class="c-title">A first-class twin</div>
+        <div class="twin"><div class="lite"></div><div class="drk"></div></div>
+      </div>
+      <div class="cell c-accent reveal" style="--i:2">
+        <span class="c-label">One accent</span>
+        <div class="c-title">Used semantically</div>
+        <div class="accent-demo">
+          <div class="swatch"></div>
+          <div class="meta"><b>#ec5a2a</b><span>state · value · the one CTA</span></div>
+        </div>
+      </div>
+      <div class="cell c-serif reveal" style="--i:3">
+        <span class="c-label">Typography</span>
+        <div class="big">Make it<br><em>feel</em> alive.</div>
+      </div>
+      <div class="cell c-pill reveal" style="--i:4">
+        <span class="c-label">Pill is the system</span>
+        <div class="pill-demo">
+          <span class="p solid">Primary</span>
+          <span class="p acc">Accent</span>
+          <span class="p">Chip</span>
+          <div class="seg"><b class="on">Light</b><b>Dark</b></div>
+        </div>
+      </div>
+      <div class="cell c-widget reveal" style="--i:5">
+        <span class="c-label">Concentric nesting</span>
+        <div class="c-title">Inner radius &lt; outer</div>
+        <div class="nest"><div class="l2"><div class="l3"></div></div></div>
+      </div>
+      <div class="cell c-mesh reveal" style="--i:6">
+        <div class="mesh-fill"></div><div class="mesh-grain"></div>
+        <span class="c-label">Gradient rule</span>
+        <div class="c-title">One grained warm mesh per surface</div>
+        <div class="c-desc">Never a button fill or full-page wash. Bias warm; purple-blue is the AI tell.</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============== MOTION ============== -->
+  <section class="block wrap" id="motion">
+    <div class="sec-head center reveal">
+      <span class="eyebrow">Motion doctrine</span>
+      <h2>Alive, never <span class="serif">in the way.</span></h2>
+      <p>The volume of motion comes from a pervasive, non-blocking alive layer. Drama is rationed to rare, earned setpieces. Frequency scales motion: seen often means barely there.</p>
+    </div>
+    <div class="motion-grid">
+      <div class="reg reveal" style="--i:0">
+        <div class="num">01</div>
+        <h3>The alive layer</h3>
+        <p>Abundant and tiny. Hover responses, press scale, focus glows, idle float, breathing, gentle gradient drift. Fast, interruptible, off the critical path. This is the secret to alive.</p>
+      </div>
+      <div class="reg reveal" style="--i:1">
+        <div class="num">02</div>
+        <h3>The WOW layer</h3>
+        <p>Rare and earned. Anticipation, impact, follow-through, committed and dramatic. A milestone, a confirmation, an arrival. Rarity is what earns the drama. Try the install button below.</p>
+      </div>
+    </div>
+
+    <div class="demo-row">
+      <div class="demo reveal" style="--i:0">
+        <div class="ticker"><span id="tick2" data-to="200">0</span><span class="u">ms</span></div>
+        <span class="d-cap">Number ticker · tabular</span>
+      </div>
+      <div class="demo reveal" style="--i:1">
+        <div class="lift-card">hover me</div>
+        <span class="d-cap">Hover lift · spring settle</span>
+      </div>
+      <div class="demo reveal" style="--i:2">
+        <button class="btn btn-primary" id="pressDemo">Press me</button>
+        <span class="d-cap">Press feedback · scale 0.97</span>
+      </div>
+    </div>
+
+    <div class="marquee reveal">
+      <div class="track" id="track"></div>
+    </div>
+  </section>
+
+  <!-- ============== NEVER LIST ============== -->
+  <section class="block wrap" id="never">
+    <div class="sec-head reveal">
+      <span class="eyebrow">Restraint</span>
+      <h2>What it will <span class="serif">never</span> ship.</h2>
+      <p>Taste is as much subtraction as addition. These are the defaults that read as slop, struck on sight.</p>
+    </div>
+    <div class="never-card reveal">
+      <div class="never-list">
+        <span class="never">pure-white canvases</span>
+        <span class="never">OLED black as default dark</span>
+        <span class="never">AI-purple glows</span>
+        <span class="never">three equal gradient cards</span>
+        <span class="never">left-accent stripes</span>
+        <span class="never">neon / LED color</span>
+        <span class="never">gradient button fills</span>
+        <span class="never">square-everything</span>
+        <span class="never">novelty-font pill words</span>
+        <span class="never">timid half-committed motion</span>
+        <span class="never">bare crossfades</span>
+        <span class="never">cursor-reactive hero tilt</span>
+        <span class="never">stock dropdowns</span>
+        <span class="never">em dashes</span>
+        <span class="never">emoji in UI</span>
+        <span class="never">reskin without relayout</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============== INSTALL — the earned WOW surface ============== -->
+  <section class="install-sec wrap" id="install">
+    <div class="install-card reveal">
+      <div class="glow"></div>
+      <span class="eyebrow">Install</span>
+      <h2>Bring the taste in <span class="serif">one line.</span></h2>
+      <p class="lead">It auto-loads its craft foundations, the motion vocabulary, and the per-surface references, then applies the personal taste lens on top.</p>
+      <div class="cmd" id="cmd" role="button" tabindex="0" aria-label="Copy install command">
+        <span class="ring"></span>
+        <code><span class="pfx">$</span> npx skills add Tresnanda/treshnanda-taste</code>
+        <span class="copybtn">
+          <svg class="ic-copy" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+          <svg class="ic-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
+        </span>
+      </div>
+      <p class="or">then start a new session and invoke <b>/treshnanda-taste</b></p>
+    </div>
+  </section>
+
+  <!-- ============== FOOTER ============== -->
+  <footer class="wrap">
+    <div class="f-brand"><span class="mark" style="display:inline-block;border-radius:8px;background:linear-gradient(135deg,var(--accent),#f59f3c)"></span> treshnanda·taste</div>
+    <p class="f-note">A living skill. It sharpens every time it is used.</p>
+    <p class="f-meta">BUILT IN ITS OWN LANGUAGE · DUAL-MODE · ZERO DEPENDENCIES</p>
+  </footer>
+</main>
+
+<div class="toast" id="toast"><span class="tdot"></span> Copied to clipboard</div>
+
+<script>
+(function(){
+  var root = document.documentElement;
+
+  /* ---------- theme toggle: crossfade masked with blur ---------- */
+  var veil = document.getElementById('veil');
+  var saved = null;
+  try { saved = localStorage.getItem('tt-theme'); } catch(e){}
+  if (saved) root.setAttribute('data-theme', saved);
+  else if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) root.setAttribute('data-theme','dark');
+
+  document.getElementById('themeToggle').addEventListener('click', function(){
+    var next = root.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
+    veil.classList.add('on');
+    setTimeout(function(){
+      root.setAttribute('data-theme', next);
+      try { localStorage.setItem('tt-theme', next); } catch(e){}
+    }, 130);
+    setTimeout(function(){ veil.classList.remove('on'); }, 300);
+  });
+
+  /* ---------- scroll reveal + stagger ---------- */
+  var io = new IntersectionObserver(function(entries){
+    entries.forEach(function(en){
+      if (en.isIntersecting){ en.target.classList.add('in'); io.unobserve(en.target); }
+    });
+  }, { threshold: 0.12, rootMargin: '0px 0px -8% 0px' });
+  document.querySelectorAll('.reveal').forEach(function(el){ io.observe(el); });
+
+  /* ---------- number tickers ---------- */
+  function runTicker(el){
+    var to = parseInt(el.getAttribute('data-to'), 10), start = null, dur = 1100;
+    function step(ts){
+      if (!start) start = ts;
+      var p = Math.min((ts - start) / dur, 1);
+      var eased = 1 - Math.pow(1 - p, 3); // ease-out cubic
+      el.textContent = Math.round(eased * to);
+      if (p < 1) requestAnimationFrame(step);
+    }
+    requestAnimationFrame(step);
+  }
+  var tickObs = new IntersectionObserver(function(entries){
+    entries.forEach(function(en){
+      if (en.isIntersecting){ runTicker(en.target); tickObs.unobserve(en.target); }
+    });
+  }, { threshold: 0.6 });
+  ['tick','tick2'].forEach(function(id){ var e = document.getElementById(id); if (e) tickObs.observe(e); });
+
+  /* ---------- motion-vocabulary marquee ---------- */
+  var terms = [
+    ['Idle ','float'],['Crossfade + ','blur'],['Stagger',' cascade'],['Shared element ','transition'],
+    ['Spring ','overshoot'],['Origin-aware',' scale'],['Rubber','-banding'],['Follow','-through'],
+    ['Squash & ','stretch'],['Scroll ','reveal'],['Number ','ticker'],['Press ','feedback'],
+    ['Asymmetric ','easing'],['Layout ','animation'],['Morph','ing']
+  ];
+  var track = document.getElementById('track');
+  var html = terms.map(function(t){ return '<span class="term">'+t[0]+'<span class="b">'+t[1]+'</span></span>'; }).join('');
+  track.innerHTML = html + html; // duplicate for seamless loop
+
+  /* ---------- press demo: deliberate squash ---------- */
+  document.getElementById('pressDemo').addEventListener('click', function(){
+    this.animate(
+      [{transform:'scale(1)'},{transform:'scale(0.94)'},{transform:'scale(1.03)'},{transform:'scale(1)'}],
+      {duration: 320, easing:'cubic-bezier(0.34,1.56,0.64,1)'}
+    );
+  });
+
+  /* ---------- install copy: the earned setpiece ---------- */
+  var cmd = document.getElementById('cmd');
+  var toast = document.getElementById('toast');
+  var toastTimer;
+  function copyInstall(){
+    var text = 'npx skills add Tresnanda/treshnanda-taste';
+    var done = function(){
+      cmd.classList.add('copied');
+      toast.classList.add('show');
+      clearTimeout(toastTimer);
+      toastTimer = setTimeout(function(){ toast.classList.remove('show'); }, 2200);
+      setTimeout(function(){ cmd.classList.remove('copied'); }, 2000);
+    };
+    if (navigator.clipboard && navigator.clipboard.writeText){
+      navigator.clipboard.writeText(text).then(done).catch(done);
+    } else { done(); }
+  }
+  cmd.addEventListener('click', copyInstall);
+  cmd.addEventListener('keydown', function(e){ if (e.key === 'Enter' || e.key === ' '){ e.preventDefault(); copyInstall(); } });
+
+  /* ---------- nav hide-on-scroll-down ---------- */
+  var lastY = 0, nav = document.querySelector('.nav');
+  window.addEventListener('scroll', function(){
+    var y = window.scrollY;
+    nav.style.top = (y > lastY && y > 200) ? '-80px' : '16px';
+    lastY = y;
+  }, { passive: true });
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,30 @@
+{
+  "name": "@salmanfaris06/omp-setup",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Portable personal OMP configuration installer for Windows and Linux",
+  "type": "module",
+  "bin": {
+    "omp-setup": "bin/omp-setup.mjs"
+  },
+  "files": [
+    "bin/",
+    "lib/",
+    "bundle/",
+    "README.md"
+  ],
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "test": "node --test",
+    "start": "node bin/omp-setup.mjs"
+  },
+  "dependencies": {
+    "yaml": "2.9.1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+ssh://git@github.com/salmanfaris06/omp-setup.git"
+  }
+}

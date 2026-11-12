@@ -1,0 +1,6 @@
+{
+  "version": "0.1.0",
+  "ompVersion": "18.19.0",
+  "context7Version": "0.11.1",
+  "description": "Sanitized personal OMP configuration; credentials and runtime data excluded"
+}

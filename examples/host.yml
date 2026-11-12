@@ -1,0 +1,13 @@
+# Salin ke luar repositori atau ke host.local.yml (diabaikan Git).
+settings:
+  tools:
+    approvalMode: write
+mcp:
+  mcpServers:
+    codebase-memory:
+      # Binary harus sudah terpasang pada host. Jangan salin .exe Windows ke Linux.
+      command: "${CODEBASE_MEMORY_COMMAND:-codebase-memory-mcp}"
+    context7:
+      # Hapus headers jika tidak menggunakan API key.
+      headers:
+        CONTEXT7_API_KEY: "${CONTEXT7_API_KEY}"
