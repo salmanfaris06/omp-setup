@@ -1,5 +1,4 @@
 node_modules/
-*.tgz
 .env
 .env.*
 !.env.example
@@ -8,6 +7,5 @@ node_modules/
 *.local.yaml
 .omp-setup/
 .codebase-memory/
-coverage/
 *.db
 *.db-*
