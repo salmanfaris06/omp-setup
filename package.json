@@ -1,7 +1,10 @@
 {
   "name": "@salmanfaris06/omp-setup",
   "version": "0.1.0",
-  "private": true,
+  "license": "MIT",
+  "publishConfig": {
+    "access": "public"
+  },
   "description": "Portable personal OMP configuration installer for Windows and Linux",
   "type": "module",
   "bin": {

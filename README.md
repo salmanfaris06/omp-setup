@@ -1,99 +1,185 @@
 # omp-setup
 
-CLI pribadi untuk menyamakan konfigurasi OMP pada Windows dan Linux. Satu sumber di repositori privat. Pembaruan dilakukan manual. Autentikasi, sesi, database, cache, dan binary MCP tetap lokal.
+Samakan konfigurasi **Oh My Pi (OMP)** pada Windows dan Linux melalui satu CLI. Simpan konfigurasi nonrahasia di repositori privat, lalu terapkan versi yang sama pada setiap host.
+
+[Mulai cepat](#mulai-cepat) · [Perintah](#referensi-perintah) · [Konfigurasi host](#konfigurasi-host) · [Pembaruan](#pembaruan) · [Troubleshooting](#diagnosis-dan-troubleshooting)
+
+## Fitur dan batas
+
+- Pasang settings, provider tambahan, 104 skills, empat agen khusus, satu command, dan instruksi pengguna.
+- Konfigurasikan MCP serta penggunaan Context7 CLI tanpa instalasi global.
+- Pisahkan konfigurasi bersama dari pengecualian host melalui overlay lokal.
+- Lindungi berkas dengan hash, cadangan, lock, dan pemulihan saat penulisan gagal.
+- Periksa instalasi melalui `doctor`, dengan pengujian koneksi opsional.
+
+CLI ini **tidak memasang OMP atau binary MCP**, tidak melakukan sinkronisasi otomatis, dan tidak memindahkan autentikasi, sesi, database, atau cache. Paket disiapkan untuk dieksekusi langsung melalui `npx @salmanfaris06/omp-setup` atau melalui URL Git.
 
 ## Prasyarat
 
-- Node.js 22+ dan npm/npx.
-- OMP 18.19.0, yaitu versi acuan bundle pertama. CLI tidak memasang atau memperbarui OMP.
-- Akses Git SSH ke repositori privat ini.
-- `codebase-memory-mcp` pada PATH untuk MCP yang aktif. Jika lokasinya berbeda, tetapkan `CODEBASE_MEMORY_COMMAND` pada environment host.
+| Kebutuhan | Keterangan |
+| --- | --- |
+| Node.js | Versi 22 atau lebih baru, dengan npm/npx |
+| Git dan akses repo | Akses SSH ke `salmanfaris06/omp-setup` untuk perintah Git pada panduan ini |
+| OMP | Versi acuan bundle: `18.19.0`; harus tersedia pada `PATH` |
+| MCP lokal | `codebase-memory-mcp` pada `PATH`, atau tetapkan `CODEBASE_MEMORY_COMMAND` |
+| Autentikasi | Siapkan akun provider model dan secret yang diperlukan pada masing-masing host |
 
-## Jalankan langsung dengan npx
+Jalankan perintah dengan akun pengguna OMP. Pastikan akun tersebut dapat menulis ke direktori target.
 
-Tidak perlu menerbitkan paket npm. npm dapat menjalankan paket dari repositori Git privat melalui SSH:
+## Mulai cepat
+
+### Jalankan melalui npx
+
+Setelah dipublikasikan ke npm, jalankan langsung tanpa instalasi global:
 
 ```sh
-npx --package=git+ssh://git@github.com/salmanfaris06/omp-setup.git#main omp-setup init --dry-run
-npx --package=git+ssh://git@github.com/salmanfaris06/omp-setup.git#main omp-setup init
+npx @salmanfaris06/omp-setup init --profile shared --dry-run
+npx @salmanfaris06/omp-setup init --profile shared
+npx @salmanfaris06/omp-setup doctor --profile shared
+omp --profile shared
 ```
 
-`#main` mengikuti branch dan tidak menjamin semua host memakai revisi yang sama. Untuk pemasangan konsisten, ganti `main` dengan SHA commit yang sama pada semua host. npm dapat meminta konfirmasi unduhan; tinjau paket sebelum menyetujuinya.
+Tinjau rencana dari perintah `--dry-run` sebelum menerapkan instalasi.
 
-Tidak ada paket registry `@salmanfaris06/omp-setup` yang diterbitkan. `private: true` mencegah publikasi npm yang tidak disengaja. Akses GitHub privat dan autentikasi npm registry adalah dua hal berbeda.
+Untuk menjalankan langsung dari repositori Git tanpa melalui registry npm:
 
-## Jalankan dari clone
+```sh
+npx --package=git+ssh://git@github.com/salmanfaris06/omp-setup.git omp-setup init --profile shared
+```
+
+Untuk mempublikasikan paket ke registry npm publik:
+
+```sh
+npm publish --access public
+```
+Untuk memasang pada profile default, ganti `--profile shared` dengan `--profile default` pada perintah installer. Jalankan OMP dengan profile yang sama.
+
+### Jalankan dari clone
+
+Gunakan cara ini untuk mengubah sumber konfigurasi atau memakai contoh overlay dalam repo:
 
 ```sh
 git clone git@github.com:salmanfaris06/omp-setup.git
 cd omp-setup
 npm ci --ignore-scripts
-node bin/omp-setup.mjs init --dry-run
-node bin/omp-setup.mjs init
+node bin/omp-setup.mjs init --profile shared --dry-run
+node bin/omp-setup.mjs init --profile shared
+node bin/omp-setup.mjs doctor --profile shared
 ```
 
-Untuk target yang telah berisi berkas konfigurasi, `init` berhenti. Gunakan `init --adopt` hanya setelah meninjau rencana. CLI membuat cadangan sebelum mengambil alih berkas. `config.yaml` harus dimigrasikan secara eksplisit ke `config.yml` terlebih dahulu.
+Contoh berikutnya dijalankan dari root clone. Gunakan `--profile shared` secara konsisten. Jika memakai profile lain, ganti nama tersebut pada setiap perintah.
 
-### Profile dan sandbox
+### Ambil alih konfigurasi lama
+
+`init` menolak berkas tujuan yang sudah ada tetapi belum dikelola installer. Untuk mengambil alih:
 
 ```sh
-node bin/omp-setup.mjs init --profile work
-node bin/omp-setup.mjs init --target ./sandbox-agent
+node bin/omp-setup.mjs init --profile default --adopt --dry-run
+node bin/omp-setup.mjs init --profile default --adopt
 ```
 
-Tanpa opsi tersebut, CLI mengikuti `OMP_PROFILE`, lalu `PI_PROFILE`, `PI_CONFIG_DIR`, dan `PI_CODING_AGENT_DIR` sesuai aturan profile OMP. Profile bernama tidak memakai `PI_CODING_AGENT_DIR`. `--target` dan `--profile` tidak dapat digabung.
+> [!WARNING]
+> `--adopt` dapat mengganti settings, skills, atau definisi MCP yang namanya sama. Tinjau rencana dan tutup OMP sebelum menerapkannya. Installer mencadangkan berkas yang diganti. Jika target memiliki `config.yaml`, migrasikan berkas tersebut ke `config.yml` terlebih dahulu.
 
-### Pengecualian host
+## Referensi perintah
 
-Salin `examples/host.yml` ke `host.local.yml`, lalu sesuaikan. Hapus bagian API key jika tidak diperlukan.
+```text
+omp-setup <init|update|doctor> [opsi]
+```
+
+| Perintah | Fungsi |
+| --- | --- |
+| `init` | Mulai mengelola target dan pasang bundle |
+| `update` | Terapkan bundle pada target yang sudah dikelola; berhenti jika ada perubahan lokal |
+| `doctor` | Periksa runtime, hash berkas, syntax konfigurasi, metadata skills/agen, dan prasyarat MCP |
+
+| Opsi | Berlaku untuk | Fungsi |
+| --- | --- | --- |
+| `--target <direktori>` | Semua | Gunakan direktori agent eksplisit, misalnya sandbox |
+| `--profile <nama>` | Semua | Pilih profile OMP; tidak dapat digabung dengan `--target` |
+| `--source <direktori>` | Semua | Baca bundle alternatif yang berisi `manifest.json` dan `agent/` |
+| `--local <berkas>` | Semua | Baca overlay YAML/JSON dengan key `settings` dan `mcp` |
+| `--dry-run` | `init`, `update` | Tampilkan rencana tanpa menulis ke target |
+| `--adopt` | `init` | Ambil alih berkas lama dengan cadangan |
+| `--online` | `doctor` | Jalankan MCP aktif, uji koneksi, dan periksa Context7 CLI |
+| `--json` | Semua | Cetak hasil dalam JSON |
+| `--help`, `-h` | Semua | Tampilkan bantuan |
+
+Kesalahan perintah atau pemeriksaan `doctor` menghasilkan exit code `1`. Tidak ada opsi force untuk mengabaikan perubahan lokal.
+
+## Konfigurasi host
+
+### Lokasi target
+
+Tanpa opsi atau environment khusus, profile default memakai `~/.omp/agent`. Profile bernama memakai `~/.omp/profiles/<nama>/agent`. Pada Windows, `~` berarti direktori home pengguna.
+
+Urutan pilihan profile: `--profile`, `OMP_PROFILE`, lalu `PI_PROFILE`. Nilai `OMP_PROFILE` kosong memilih default dan tidak memakai fallback `PI_PROFILE`.
+
+`PI_CONFIG_DIR` mengganti root `.omp`. `PI_CODING_AGENT_DIR` mengganti direktori agent profile default, tetapi diabaikan oleh profile bernama. `--target` memilih direktori secara langsung; jangan gabungkan dengan `--profile`.
+
+Untuk mencoba tanpa menyentuh profile OMP:
 
 ```sh
-node bin/omp-setup.mjs init --local ./host.local.yml
-node bin/omp-setup.mjs update --local ./host.local.yml
+node bin/omp-setup.mjs init --target ./sandbox-agent --dry-run
 ```
 
-Overlay hanya menerima `settings` dan `mcp`. Mapping digabung rekursif; scalar dan array menggantikan nilai lama. Berikan overlay yang sama setiap pembaruan. Jika opsi `--local` dihilangkan, konfigurasi kembali ke bundle bersama. Path overlay tidak disimpan atau dimasukkan ke Git.
+### Overlay lokal
 
-Gunakan `${VARIABLE}` atau `${VARIABLE:-default}` di definisi MCP untuk path dan token host. Nilainya tetap berupa referensi dalam berkas hasil, bukan token yang diekspansi. OMP melakukan ekspansi saat memuat MCP. Rahasia literal pada key kredensial ditolak; pemeriksaan ini bukan pengganti peninjauan manual seluruh bundle.
+Salin [examples/host.yml](examples/host.yml) menjadi `host.local.yml`. Nama `*.local.yml` diabaikan Git. Berkas overlay minimal dapat berupa:
 
-## Pembaruan
-
-Ubah hanya sumber utama di `bundle/`, lalu kirim commit baru. Pada host tujuan:
+```yaml
+settings:
+  tools:
+    approvalMode: write
+mcp:
+  mcpServers:
+    codebase-memory:
+      command: "${CODEBASE_MEMORY_COMMAND:-codebase-memory-mcp}"
+```
 
 ```sh
-git pull --ff-only
-npm ci --ignore-scripts
-node bin/omp-setup.mjs update --dry-run
-node bin/omp-setup.mjs update
-node bin/omp-setup.mjs doctor
+node bin/omp-setup.mjs init --profile shared --local ./host.local.yml
+node bin/omp-setup.mjs update --profile shared --local ./host.local.yml
+node bin/omp-setup.mjs doctor --profile shared --local ./host.local.yml
 ```
 
-Untuk mode npx, jalankan `update` dengan SHA commit baru. `update` menerapkan bundle yang sedang dijalankan; perintah itu tidak melakukan Git pull sendiri.
+Mapping digabung rekursif. Scalar dan array menggantikan nilai sebelumnya. Overlay hanya menerima `settings` dan `mcp`; ubah definisi provider tambahan melalui `bundle/agent/models.yml`.
 
-- Hash pada `.omp-setup/state.json` melindungi berkas yang dikelola dari penimpaan perubahan lokal.
-- Berkas lama yang dihapus dari bundle juga dihapus dari target, setelah cadangan dibuat.
-- Berkas yang tidak dikelola tidak disentuh.
-- Kegagalan penulisan memulihkan berkas yang sudah diubah pada transaksi tersebut.
-- Lock mencegah dua installer menulis bersamaan. Setelah crash, periksa proses installer sebelum menghapus direktori lock yang tertinggal.
-- Mulai ulang OMP untuk memuat semua skills, agen, dan instruksi baru. `/mcp reload` hanya memuat ulang MCP.
+> [!NOTE]
+> Installer tidak mengingat pilihan `--local`. Berikan berkas yang sama pada setiap pemasangan atau pembaruan. Jika dihilangkan, installer menerapkan nilai bundle tanpa pengecualian tersebut. Pada `doctor`, opsi ini memvalidasi sumber; pemeriksaan runtime tetap membaca konfigurasi yang sudah terpasang.
 
-Perubahan melalui `/settings` menimbulkan drift pada `config.yml`. Pindahkan perubahan itu ke sumber atau overlay lokal, lalu pulihkan berkas target ke versi terakhir sebelum menjalankan update. Tidak ada opsi force yang mengabaikan drift.
+### Path executable Windows dan Linux
 
-### Cadangan dan pemulihan
+Jika executable tidak ada pada `PATH`, tetapkan path sesuai host sebelum menjalankan installer, doctor, dan OMP.
 
-Setiap transaksi menyimpan berkas sebelumnya pada `<target>/.omp-setup/backups/<id>/files/` dan metadata pada `backup.json`. Cadangan bisa berisi konfigurasi lokal lama yang sensitif; jangan unggah folder ini.
+**Windows — PowerShell:**
 
-Untuk kembali ke versi konfigurasi lama tanpa drift, jalankan installer dari SHA lama dengan `update`. Untuk memulihkan pengambilalihan awal, tutup OMP, pulihkan berkas bertanda `restore` dari `files/`, hapus hanya berkas bertanda `remove`, lalu pulihkan `previousState` sebagai `.omp-setup/state.json`. Jika `previousState` null, hapus state tersebut. Jangan hapus data OMP lainnya.
+```powershell
+$env:CODEBASE_MEMORY_COMMAND = "$HOME\.local\bin\codebase-memory-mcp.exe"
+```
+
+**Linux — Bash:**
+
+```bash
+export CODEBASE_MEMORY_COMMAND="$HOME/.local/bin/codebase-memory-mcp"
+```
+
+Sesuaikan dengan lokasi binary yang benar. Contoh ini hanya berlaku pada terminal saat ini. Siapkan environment persisten dengan mekanisme host jika diperlukan.
 
 ## MCP dan Context7
 
-Bundle memuat:
+| MCP | Status bundle | Prasyarat |
+| --- | --- | --- |
+| `codebase-memory` | Aktif, stdio | Executable lokal |
+| `context7` | Aktif, HTTP | Akses ke `https://mcp.context7.com/mcp`; tanpa token bawaan |
+| `pencil` | Nonaktif | Binary Pencil; dapat ditentukan melalui `PENCIL_MCP_COMMAND` |
+| `rea` | Nonaktif | npx dan paket `rea-agents@6.7.0` saat diaktifkan |
 
-- `codebase-memory`: aktif, memakai executable host atau `CODEBASE_MEMORY_COMMAND`.
-- `context7`: aktif, Streamable HTTP ke `https://mcp.context7.com/mcp`, tanpa token bawaan.
-- `pencil` dan `rea`: nonaktif, sesuai konfigurasi sumber. Aktifkan melalui overlay setelah dependensinya tersedia.
+Aktifkan MCP nonaktif melalui overlay hanya setelah dependensinya tersedia. Jangan menyalin binary Windows ke Linux.
 
-Context7 CLI dijalankan on demand; instalasi global tidak diperlukan:
+### Context7 CLI
+
+Versi acuan CLI adalah `0.11.1`. Instalasi global tidak diperlukan:
 
 ```sh
 npx ctx7@0.11.1 library "Next.js" "App Router metadata"
@@ -101,36 +187,120 @@ npx ctx7@0.11.1 docs /vercel/next.js "App Router metadata"
 npx ctx7@0.11.1 login
 ```
 
-Login CLI bersifat opsional untuk batas penggunaan lebih tinggi. Login CLI tidak otomatis memasok kredensial ke MCP. Untuk API key MCP, gunakan environment `CONTEXT7_API_KEY` dan overlay contoh. Jangan memasukkan API key sebagai argumen yang tersimpan di shell history.
+Jalankan `library` dahulu, lalu gunakan ID hasilnya pada `docs`. Login bersifat opsional untuk batas penggunaan lebih tinggi. Login CLI tidak otomatis memasok kredensial ke MCP.
 
-## Diagnosis
+### Secret dan API key
 
-```sh
-node bin/omp-setup.mjs doctor
-node bin/omp-setup.mjs doctor --online
-node bin/omp-setup.mjs doctor --json
+Untuk memakai API key Context7 MCP, tetapkan `CONTEXT7_API_KEY` melalui environment host atau pengelola secret, lalu tambahkan ke overlay:
+
+```yaml
+mcp:
+  mcpServers:
+    context7:
+      headers:
+        CONTEXT7_API_KEY: "${CONTEXT7_API_KEY}"
 ```
 
-Mode biasa memeriksa runtime, hash, syntax konfigurasi, metadata skills/agen, executable MCP, dan referensi environment. Mode tersebut tidak membuktikan koneksi atau discovery efektif OMP. Konfigurasi project dan sumber asing masih dapat menimpa definisi user.
+Installer menyimpan referensinya, bukan nilai token. OMP melakukan ekspansi `${VARIABLE}` dan `${VARIABLE:-default}` ketika memuat MCP. Jika tidak memakai API key, hilangkan bagian `headers` tersebut.
 
-`--online` menjalankan MCP stdio yang aktif dan mengirim `initialize` serta `tools/list` ke MCP HTTP yang aktif. Mode ini juga menjalankan `npx ctx7@0.11.1 --version`; npm dapat mengunduh paket. Gunakan hanya pada konfigurasi tepercaya. Tidak ada browser OAuth yang dibuka otomatis. MCP SSE lama atau secret command `!command` perlu diuji memakai `/mcp test <nama>` di OMP. Pemeriksaan versi OMP menandai versi selain acuan sebagai error kompatibilitas, bukan bukti bahwa versi itu pasti rusak.
+Provider tambahan dalam `models.yml` memakai referensi `ALPHARIZE_API_KEY` dan `ATRIA_API_KEY`. Siapkan hanya jika provider tersebut digunakan.
 
-Di OMP, gunakan `/mcp list`, `/mcp test codebase-memory`, `/mcp test context7`, dan panel skills/agen untuk memeriksa discovery efektif. Autentikasi provider model tetap dilakukan pada masing-masing host.
+> [!CAUTION]
+> Jangan commit token, `.env`, atau direktori data OMP. Pemeriksaan kredensial literal pada key tertentu bukan pemindai semua kemungkinan secret. Tinjau seluruh bundle sebelum dibagikan, termasuk dalam repo privat.
 
-## Isi bundle awal
+## Pembaruan
 
-104 skills, empat agen khusus, satu command, aturan bahasa/keamanan, instruksi Context7, serta settings dari instalasi sumber. Skill dengan nama sama dipilih berurutan dari native OMP, `.agents`, lalu `.agent`. Resource skill ikut disalin; direktori Git, dependency, virtualenv, `.env`, dan database tidak disalin. Lisensi dan atribusi resource dipertahankan.
+Ubah konfigurasi bersama hanya pada sumber utama di `bundle/`. Setelah perubahan masuk ke repo, jalankan pada host tujuan:
 
-Perubahan sanitasi: `approvalMode` menjadi `write`; `setupVersion` dan persetujuan auto-QA dibuang; path executable Windows MCP diganti referensi environment/nama executable. `models.yml` mempertahankan provider tambahan dengan referensi `ALPHARIZE_API_KEY` dan `ATRIA_API_KEY`, tanpa nilainya. Extension khusus Orca dan `lsp.json` khusus Windows tidak disalin. Kredensial provider dan consent harus disiapkan pada host masing-masing.
+```sh
+git pull --ff-only
+npm ci --ignore-scripts
+node bin/omp-setup.mjs update --profile shared --dry-run
+node bin/omp-setup.mjs update --profile shared
+node bin/omp-setup.mjs doctor --profile shared
+```
 
-## Pengembangan
+Tambahkan `--local` jika host memakai overlay. Untuk cara npx, gunakan pola perintah mulai cepat dengan SHA baru dan subperintah `update`. `update` menerapkan bundle yang sedang dijalankan; perintah tersebut tidak melakukan Git pull atau memperbarui OMP.
+
+Installer membandingkan hash pada `.omp-setup/state.json` sebelum mengubah berkas. Perubahan lokal, termasuk penghapusan berkas yang dikelola, menghentikan pembaruan. Berkas kelolaan yang dihapus dari bundle dicadangkan lalu dihapus dari target. Berkas lain tidak disentuh.
+
+Setelah pemasangan atau pembaruan, mulai ulang OMP untuk memuat seluruh skills, agen, dan instruksi. `/mcp reload` hanya memuat ulang MCP. Konfigurasi project atau sumber lain masih dapat menimpa definisi user.
+
+## Cadangan dan pemulihan
+
+Transaksi yang mengubah berkas menyimpan cadangan pada `<target>/.omp-setup/backups/<id>/`. Berkas lama berada di `files/`; `backup.json` mencatat tindakan pemulihan dan `previousState`.
+
+Untuk kembali ke versi konfigurasi sebelumnya tanpa drift, jalankan `update` dari SHA lama atau gunakan bundle lama melalui `--source`.
+
+Untuk membatalkan pengambilalihan awal secara manual:
+
+1. Tutup OMP dan pastikan tidak ada installer yang aktif.
+2. Baca `backup.json` dari transaksi yang ingin dibatalkan.
+3. Pulihkan berkas bertanda `restore` dari `files/` ke path relatif yang sama pada target.
+4. Hapus hanya berkas yang bertanda `remove` pada metadata tersebut.
+5. Simpan objek `previousState` sebagai `.omp-setup/state.json`. Jika nilainya `null`, hapus berkas state itu.
+
+Jangan hapus direktori OMP secara menyeluruh. Cadangan dapat memuat konfigurasi lama yang sensitif; simpan secara lokal.
+
+## Diagnosis dan troubleshooting
+
+```sh
+node bin/omp-setup.mjs doctor --profile shared
+node bin/omp-setup.mjs doctor --profile shared --online
+node bin/omp-setup.mjs doctor --profile shared --json
+```
+
+Mode biasa memeriksa prasyarat, bukan konektivitas atau discovery efektif OMP. `--online` menjalankan MCP stdio aktif, mengirim `initialize` dan `tools/list` ke MCP HTTP aktif, serta memeriksa versi Context7 CLI melalui npx. Pemeriksaan versi CLI tidak membuktikan autentikasi API dokumentasi.
+
+> [!WARNING]
+> Gunakan `--online` hanya pada konfigurasi tepercaya. MCP stdio menjalankan program pada host dan npx dapat mengunduh paket. Doctor tidak membuka browser OAuth secara otomatis. MCP SSE lama dan secret command `!command` perlu diuji melalui `/mcp test <nama>` di OMP.
+
+| Masalah | Tindakan |
+| --- | --- |
+| Akses repo ditolak | Pastikan akun dan kunci SSH pada host memiliki akses ke repo privat |
+| `Berkas belum dikelola` | Tinjau `init --adopt --dry-run`, lalu ambil alih hanya jika sesuai |
+| `Target belum dikelola` | Jalankan `init` pada profile atau target yang sama sebelum `update` |
+| `Perubahan lokal ditemukan` | Salin perubahan ke sumber atau overlay, lalu pulihkan berkas target ke versi terakhir sebelum update |
+| `config.yaml sudah ada` | Cadangkan dan migrasikan ke `config.yml`; jangan meninggalkan kedua nama |
+| Executable MCP tidak ditemukan | Pasang binary yang sesuai OS atau perbaiki environment path |
+| Environment variable belum tersedia | Tetapkan variable pada proses yang menjalankan doctor dan OMP; hilangkan header opsional jika tidak dipakai |
+| Versi OMP berbeda | Bundle mengacu versi pada `manifest.json`; error ini belum membuktikan versi lain pasti tidak kompatibel |
+| Lock tertinggal | Pastikan installer sudah berhenti sebelum menghapus `<target>/.omp-setup/lock` |
+| Symlink atau junction ditolak | Gunakan target dan berkas biasa; installer juga memeriksa direktori induknya |
+
+Perubahan melalui `/settings` juga dapat menyebabkan drift pada `config.yml`. Jangan memakai `--adopt` untuk melewati drift pada berkas yang sudah dikelola.
+
+Di dalam OMP, periksa discovery dan koneksi dengan `/mcp list`, `/mcp test codebase-memory`, `/mcp test context7`, serta panel skills/agen. Login provider model tetap dilakukan pada setiap host.
+
+## Struktur proyek
+
+```text
+bin/omp-setup.mjs       Antarmuka CLI
+lib/setup.mjs          Target, overlay, hash, cadangan, dan transaksi pemasangan
+lib/doctor.mjs         Pemeriksaan runtime dan koneksi MCP
+bundle/manifest.json   Versi konfigurasi, OMP, dan Context7
+bundle/agent/          Berkas konfigurasi yang dibagikan
+examples/host.yml      Contoh pengecualian host
+test/                  Pengujian terisolasi
+.github/workflows/     CI Windows dan Linux
+```
+
+Bundle awal berasal dari konfigurasi pengguna yang disanitasi. `approvalMode` menjadi `write`; penanda setup dan persetujuan auto-QA tidak ikut disalin. Path MCP Windows diganti referensi environment atau nama executable. Extension khusus Orca dan `lsp.json` khusus Windows tidak disertakan.
+
+Resource skill beserta lisensi dan atribusinya dipertahankan. Direktori Git, dependency, virtualenv, `.env`, dan database tidak ikut diimpor.
+
+## Pengujian
 
 ```sh
 npm ci --ignore-scripts
 npm test
-npm pack
+npm pack --ignore-scripts
 ```
 
-Pengujian memakai direktori sementara, bukan direktori OMP aktif. Tidak ada server lokal atau browser yang dijalankan oleh suite default. GitHub Actions menjalankan suite dan smoke paket npx pada Windows serta Linux.
+Suite default memakai direktori sementara, tanpa mengubah OMP aktif atau menjalankan server/browser. [GitHub Actions](https://github.com/salmanfaris06/omp-setup/actions/workflows/test.yml) menjalankan suite dan pemasangan/pembaruan paket npx pada Windows serta Linux. Uji koneksi MCP dilakukan terpisah melalui `doctor --online`.
 
-Referensi: [OMP settings](https://github.com/can1357/oh-my-pi/blob/main/docs/settings.md), [OMP MCP](https://github.com/can1357/oh-my-pi/blob/main/docs/mcp-config.md), [Context7](https://github.com/upstash/context7).
+## Referensi
+
+- [OMP settings](https://github.com/can1357/oh-my-pi/blob/main/docs/settings.md)
+- [OMP MCP](https://github.com/can1357/oh-my-pi/blob/main/docs/mcp-config.md)
+- [Context7](https://github.com/upstash/context7)
