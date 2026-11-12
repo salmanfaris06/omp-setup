@@ -12,14 +12,14 @@ Samakan konfigurasi **Oh My Pi (OMP)** pada Windows dan Linux melalui satu CLI. 
 - Lindungi berkas dengan hash, cadangan, lock, dan pemulihan saat penulisan gagal.
 - Periksa instalasi melalui `doctor`, dengan pengujian koneksi opsional.
 
-CLI ini **tidak memasang OMP atau binary MCP**, tidak melakukan sinkronisasi otomatis, dan tidak memindahkan autentikasi, sesi, database, atau cache. Paket disiapkan untuk dieksekusi langsung melalui `npx @salmanfaris06/omp-setup` atau melalui URL Git.
+CLI ini **tidak memasang OMP atau binary MCP**, tidak melakukan sinkronisasi otomatis, dan tidak memindahkan autentikasi, sesi, database, atau cache. Paket tersedia melalui npm atau URL Git.
 
 ## Prasyarat
 
 | Kebutuhan | Keterangan |
 | --- | --- |
 | Node.js | Versi 22 atau lebih baru, dengan npm/npx |
-| Git dan akses repo | Akses SSH ke `salmanfaris06/omp-setup` untuk perintah Git pada panduan ini |
+| Git dan akses repo | Hanya untuk clone atau instalasi melalui Git; akses SSH ke `salmanfaris06/omp-setup` diperlukan |
 | OMP | Versi acuan bundle: `18.19.0`; harus tersedia pada `PATH` |
 | MCP lokal | `codebase-memory-mcp` pada `PATH`, atau tetapkan `CODEBASE_MEMORY_COMMAND` |
 | Autentikasi | Siapkan akun provider model dan secret yang diperlukan pada masing-masing host |
@@ -30,12 +30,12 @@ Jalankan perintah dengan akun pengguna OMP. Pastikan akun tersebut dapat menulis
 
 ### Jalankan melalui npx
 
-Setelah dipublikasikan ke npm, jalankan langsung tanpa instalasi global:
+Jalankan paket npm tanpa instalasi global. Contoh ini memakai versi yang sama pada setiap host:
 
 ```sh
-npx @salmanfaris06/omp-setup init --profile shared --dry-run
-npx @salmanfaris06/omp-setup init --profile shared
-npx @salmanfaris06/omp-setup doctor --profile shared
+npx @salmanfaris06/omp-setup@0.1.0 init --profile shared --dry-run
+npx @salmanfaris06/omp-setup@0.1.0 init --profile shared
+npx @salmanfaris06/omp-setup@0.1.0 doctor --profile shared
 omp --profile shared
 ```
 
@@ -47,12 +47,39 @@ Untuk menjalankan langsung dari repositori Git tanpa melalui registry npm:
 npx --package=git+ssh://git@github.com/salmanfaris06/omp-setup.git omp-setup init --profile shared
 ```
 
-Untuk mempublikasikan paket ke registry npm publik:
+Untuk memasang pada profile default, ganti `--profile shared` dengan `--profile default` pada perintah installer. Jalankan OMP dengan profile yang sama.
+
+### Publikasi paket npm
+
+Publikasi memerlukan akun npm yang memiliki akses ke scope `@salmanfaris06` dan verifikasi 2FA. Atur security key melalui [pengaturan 2FA npm](https://www.npmjs.com/settings), lalu login dengan `npm login`.
+
+Isi paket yang diterbitkan bersifat publik, meskipun repositori Git privat. Sebelum menerbitkan, tinjau isi bundle, lisensi, dan hasil `npm pack --dry-run`. Jangan sertakan secret atau data pribadi.
+
+Di root clone, periksa nama, versi, dan executable, lalu terbitkan:
 
 ```sh
+npm pkg get name version bin
+npm pack --dry-run
 npm publish --access public
 ```
-Untuk memasang pada profile default, ganti `--profile shared` dengan `--profile default` pada perintah installer. Jalankan OMP dengan profile yang sama.
+
+Jika versi sudah di-stage, tinjau dan setujui versi tersebut melalui tab **Staged Packages** di npmjs.com, atau gunakan:
+
+```sh
+npm stage list @salmanfaris06/omp-setup
+npm stage approve <stage-id>
+```
+
+Persetujuan memerlukan 2FA. Jika daftar staging kosong, periksa registry sebelum mencoba menerbitkan lagi. Versi tersebut mungkin sudah disetujui. Lihat [panduan staged publishing npm](https://docs.npmjs.com/staged-publishing/).
+
+Verifikasi versi yang diterbitkan dan field `bin` sebelum menjalankannya pada host lain:
+
+```sh
+npm view @salmanfaris06/omp-setup@0.1.0 version bin --json
+```
+
+Ganti `0.1.0` dengan versi yang diterbitkan. Gunakan versi baru untuk setiap rilis.
+
 
 ### Jalankan dari clone
 
@@ -220,7 +247,7 @@ node bin/omp-setup.mjs update --profile shared
 node bin/omp-setup.mjs doctor --profile shared
 ```
 
-Tambahkan `--local` jika host memakai overlay. Untuk cara npx, gunakan pola perintah mulai cepat dengan SHA baru dan subperintah `update`. `update` menerapkan bundle yang sedang dijalankan; perintah tersebut tidak melakukan Git pull atau memperbarui OMP.
+Tambahkan `--local` jika host memakai overlay. Untuk cara npx, gunakan versi paket npm yang baru dan subperintah `update`, misalnya `npx @salmanfaris06/omp-setup@0.1.0 update --profile shared --dry-run`. `update` menerapkan bundle yang sedang dijalankan; perintah tersebut tidak melakukan Git pull atau memperbarui OMP.
 
 Installer membandingkan hash pada `.omp-setup/state.json` sebelum mengubah berkas. Perubahan lokal, termasuk penghapusan berkas yang dikelola, menghentikan pembaruan. Berkas kelolaan yang dihapus dari bundle dicadangkan lalu dihapus dari target. Berkas lain tidak disentuh.
 
@@ -258,6 +285,9 @@ Mode biasa memeriksa prasyarat, bukan konektivitas atau discovery efektif OMP. `
 | Masalah | Tindakan |
 | --- | --- |
 | Akses repo ditolak | Pastikan akun dan kunci SSH pada host memiliki akses ke repo privat |
+| `npx` tidak menemukan executable | Periksa versi dan field `bin` dengan `npm view @salmanfaris06/omp-setup@0.1.0 version bin --json`. Pastikan versi telah diterbitkan, bukan hanya di-stage. |
+| Publikasi npm `E403` terkait 2FA | Konfigurasi security key di situs npm, lalu ulangi autentikasi dan publikasi. |
+| Publikasi npm `E409` untuk versi yang di-stage | Tinjau dan setujui versi yang ada di staging. Jika tidak ada, periksa apakah versi tersebut sudah tersedia di registry. |
 | `Berkas belum dikelola` | Tinjau `init --adopt --dry-run`, lalu ambil alih hanya jika sesuai |
 | `Target belum dikelola` | Jalankan `init` pada profile atau target yang sama sebelum `update` |
 | `Perubahan lokal ditemukan` | Salin perubahan ke sumber atau overlay, lalu pulihkan berkas target ke versi terakhir sebelum update |
